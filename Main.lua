@@ -1,12 +1,16 @@
 local CHESS_URL   = "https://raw.githubusercontent.com/youziwing/Chess-/refs/heads/main/Main.lua"
 local ROCHESS_URL = "https://raw.githubusercontent.com/youziwing/RoChessM/refs/heads/main/Main.lua"
 
+local CHESS_IDS   = { 6222531507 }
+local ROCHESS_IDS = { 139717576471404 }
+
 if _G.__ChessLoaderStop then pcall(_G.__ChessLoaderStop) end
 
 local Players    = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Mouse      = Players.LocalPlayer:GetMouse()
 
+-- Theme -------------------------------------------------------------
 local C = {
     panel   = Color3.fromRGB(22, 25, 33),
     line    = Color3.fromRGB(45, 50, 64),
@@ -20,6 +24,7 @@ local C = {
 }
 local VK_1, VK_2, VK_CTRL = 0x31, 0x32, 0x11
 
+-- Drawing helpers ---------------------------------------------------
 local PW, PH = 320, 186
 local originX, originY = 60, 140
 local z, elements = 0, {}
@@ -45,13 +50,14 @@ local function label(ox, oy, text, size, color, center, bold)
     })
 end
 
+-- Build UI ----------------------------------------------------------
 add("Square", 0, 0, { Size = Vector2.new(PW, PH), Color = C.panel, Filled = true, Corner = 12 })
 label(20, 14, "Chess Loader", 18, C.text, false, true)
 label(20, 38, "Pick a game to load", 13, C.sub)
 add("Square", 20, 62, { Size = Vector2.new(PW - 40, 1), Color = C.line, Filled = true })
 
 local buttons = {}
-local function makeButton(y, name, url, key, base, hot)
+local function makeButton(y, name, url, ids, key, base, hot)
     local w, h = PW - 40, 42
     local disabled = (url == "")
     local bg = add("Square", 20, y, {
@@ -60,18 +66,20 @@ local function makeButton(y, name, url, key, base, hot)
     label(PW / 2, y + 12, name, 16, C.text, true, true)
     label(PW - 38, y + 13, key, 14, disabled and C.sub or C.text, true)
     buttons[#buttons + 1] = {
-        bg = bg, ox = 20, oy = y, w = w, h = h, name = name, url = url,
+        bg = bg, ox = 20, oy = y, w = w, h = h, name = name, url = url, ids = ids,
         base = base, hot = hot, disabled = disabled,
     }
 end
-makeButton(76,  "Chess!",  CHESS_URL,   "1", C.blue,  C.blueHot)
-makeButton(128, "RoChess", ROCHESS_URL, "2", C.green, C.greenHot)
+makeButton(76,  "Chess!",  CHESS_URL,   CHESS_IDS,   "1", C.blue,  C.blueHot)
+makeButton(128, "RoChess", ROCHESS_URL, ROCHESS_IDS, "2", C.green, C.greenHot)
 
+-- State -------------------------------------------------------------
 local selected, pending, busy, visible = nil, nil, false, true
+local autoMode = false
 local dragging, dragDX, dragDY, wasDown = false, 0, 0, false
 local keyWas = {}
 
-local function setStatus(text) print("[Chess Loader] " .. text) end
+local function log(text) print("[Chess Loader] " .. text) end
 
 local function reposition()
     for _, e in ipairs(elements) do
@@ -91,36 +99,66 @@ local function pressed(vk)
     return p
 end
 
+-- Loading -----------------------------------------------------------
 local function runLoad(b)
     local okGet, src = pcall(httpget, b.url)
     if not okGet or not src or src == "" then
-        return setStatus("Download failed (check URL / connection)")
+        return log("Download failed (check URL / connection)")
     end
     if src:sub(1, 3) == "404" then
-        return setStatus("404: file not found at that URL")
+        return log("404: file not found at that URL")
     end
 
     local fn = loadstring(src)
-    if not fn then return setStatus(b.name .. ": compile failed") end
+    if not fn then return log(b.name .. ": compile failed") end
 
     local okRun, err = pcall(fn)
     if not okRun then
-        return setStatus(b.name .. " error: " .. tostring(err))
+        return log(b.name .. " error: " .. tostring(err))
     end
 
     selected = b.name
-    print("[Chess Loader] Loaded " .. b.name)
-    _G.__ChessLoaderStop()
+    log("Loaded " .. b.name)
+    _G.__ChessLoaderStop() -- remove the UI and stop the loop
 end
 
 local function startLoad(b)
     if busy or selected then return end
-    if b.disabled then return setStatus(b.name .. " has no URL set") end
+    if b.disabled then return log(b.name .. " has no URL set") end
     busy = true
-    setStatus("Loading " .. b.name .. "...")
-    pending = b
+    log("Loading " .. b.name .. "...")
+    pending = b -- runs next frame
 end
 
+-- Auto-detect by game id --------------------------------------------
+local function matches(b)
+    for _, id in ipairs(b.ids) do
+        if id == game.PlaceId or id == game.GameId then return true end
+    end
+    return false
+end
+
+-- PlaceId can read 0 briefly right after injection, so give it a moment
+for _ = 1, 20 do
+    if game.PlaceId ~= 0 then break end
+    task.wait(0.25)
+end
+
+local autoBtn
+for _, b in ipairs(buttons) do
+    if matches(b) then autoBtn = b break end
+end
+
+if autoBtn then
+    autoMode = true
+    setVisible(false)
+    log("Detected " .. autoBtn.name .. " (PlaceId " .. tostring(game.PlaceId) .. ") - auto loading")
+    startLoad(autoBtn)
+else
+    log("Unknown game (PlaceId " .. tostring(game.PlaceId) .. ") - pick manually")
+end
+
+-- Main loop ---------------------------------------------------------
 local conn = RunService.Heartbeat:Connect(function()
     local k1, k2, kc = pressed(VK_1), pressed(VK_2), pressed(VK_CTRL)
 
@@ -128,6 +166,12 @@ local conn = RunService.Heartbeat:Connect(function()
         local b = pending; pending = nil
         runLoad(b)
         busy = false
+        -- auto-load failed: fall back to the manual panel
+        if autoMode and not selected then
+            autoMode = false
+            setVisible(true)
+            log("Auto-load failed - pick a game manually")
+        end
         return
     end
 
@@ -173,3 +217,5 @@ _G.__ChessLoaderStop = function()
     for _, e in ipairs(elements) do pcall(function() e.obj:Remove() end) end
     elements = {}
 end
+
+log("Ready.")
