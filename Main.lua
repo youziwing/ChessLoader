@@ -2,7 +2,7 @@ local CHESS_URL   = "https://raw.githubusercontent.com/youziwing/Chess-/refs/hea
 local ROCHESS_URL = "https://raw.githubusercontent.com/youziwing/RoChessM/refs/heads/main/Main.lua"
 
 local CHESS_IDS   = { 6222531507 }
-local ROCHESS_IDS = { 139717576471404 }
+local ROCHESS_IDS = { 130878180532794 }
 
 if _G.__ChessLoaderStop then pcall(_G.__ChessLoaderStop) end
 
