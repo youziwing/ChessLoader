@@ -101,6 +101,12 @@ end
 
 -- Loading -----------------------------------------------------------
 local function runLoad(b)
+    local okHealth, health = pcall(httpget, "https://vercel-gateway-two-orpin.vercel.app/api/health")
+    if not okHealth or not health or (not health:find('"ok":true', 1, true) and not health:find('"gateway":"ready"', 1, true)) then
+        log("Script currently down: Stockfish service unavailable")
+        return
+    end
+
     local okGet, src = pcall(httpget, b.url)
     if not okGet or not src or src == "" then
         return log("Download failed (check URL / connection)")
