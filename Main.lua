@@ -1,4 +1,4 @@
-ocal CHESS_URL   = "https://raw.githubusercontent.com/youziwing/Chess-/refs/heads/main/Main.lua"
+local CHESS_URL   = "https://raw.githubusercontent.com/youziwing/Chess-/refs/heads/main/Main.lua"
 local ROCHESS_URL = "https://raw.githubusercontent.com/youziwing/RoChessM/refs/heads/main/Main.lua"
 
 local CHESS_IDS   = { 6222531507 }
